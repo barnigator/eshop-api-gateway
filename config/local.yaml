@@ -1,0 +1,14 @@
+env: local
+
+http:
+  port: 8080
+  timeout: 5s
+
+clients:
+  sso:
+    address: sso:44044
+    timeout: 5s
+
+  seller:
+    address: seller-service:44045
+    timeout: 5s
