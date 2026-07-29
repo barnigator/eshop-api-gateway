@@ -6,9 +6,9 @@ http:
 
 clients:
   sso:
-    address: sso:44044
+    address: localhost:44044
     timeout: 5s
 
   seller:
-    address: seller-service:44045
+    address: localhost:44045
     timeout: 5s
