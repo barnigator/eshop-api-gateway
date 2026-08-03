@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,5 +121,41 @@ func TestNew(t *testing.T) {
 
 	if server.httpServer.ReadHeaderTimeout != timeout {
 		t.Fatalf("wrong ReadHeaderTimeout: got %s, want %s", server.httpServer.ReadHeaderTimeout, timeout)
+	}
+}
+
+func TestServer_Shutdown(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	s := New(handler, 0, time.Second)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- s.httpServer.Serve(listener)
+	}()
+
+	client := &http.Client{Timeout: time.Second}
+	resp, err := client.Get("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatalf("request to running server: %v", err)
+	}
+	resp.Body.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err = s.Shutdown(ctx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+
+	if err = <-serveErr; !errors.Is(err, http.ErrServerClosed) {
+		t.Fatalf("Serve error: got %v, want %v", err, http.ErrServerClosed)
 	}
 }
