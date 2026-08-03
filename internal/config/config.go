@@ -26,6 +26,7 @@ type ClientsConfig struct {
 
 type SSOConfig struct {
 	Address string        `yaml:"address" env:"SSO_ADDRESS" env-required:"true"`
+	AppId   int32         `yaml:"app_id" env:"SSO_APP_ID" env-required:"true"`
 	Timeout time.Duration `yaml:"timeout" env-default:"5s"`
 }
 

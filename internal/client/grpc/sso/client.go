@@ -13,11 +13,16 @@ import (
 type Client struct {
 	conn   *grpc.ClientConn
 	client ssov1.AuthClient
+	appID  int32
 }
 
-func New(address string) (*Client, error) {
+func New(address string, appID int32) (*Client, error) {
 	if address == "" {
 		return nil, errors.New("sso address is empty")
+	}
+
+	if appID <= 0 {
+		return nil, errors.New("sso app id must be positive")
 	}
 
 	conn, err := grpc.NewClient(
@@ -33,6 +38,7 @@ func New(address string) (*Client, error) {
 	return &Client{
 		conn:   conn,
 		client: client,
+		appID:  appID,
 	}, nil
 }
 

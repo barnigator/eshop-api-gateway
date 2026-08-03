@@ -7,6 +7,7 @@ http:
 clients:
   sso:
     address: localhost:44044
+    app_id: 1
     timeout: 5s
 
   seller:
