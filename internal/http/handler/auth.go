@@ -32,6 +32,15 @@ type registerResponse struct {
 	UserID int64 `json:"user_id"`
 }
 
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type loginResponse struct {
+	Token string `json:"token"`
+}
+
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 
@@ -67,6 +76,44 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, registerResponse{UserID: id})
+}
+
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	err := decoder.Decode(&req)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid input data")
+		return
+	}
+
+	err = decoder.Decode(&struct{}{})
+	if err != io.EOF {
+		respondWithError(w, http.StatusBadRequest, "invalid input data")
+		return
+	}
+
+	token, err := h.uc.Login(r.Context(), req.Email, req.Password)
+	if err != nil {
+		if errors.Is(err, domain.ErrEmailRequired) {
+			respondWithError(w, http.StatusBadRequest, domain.ErrEmailRequired.Error())
+			return
+		}
+
+		if errors.Is(err, domain.ErrPasswordRequired) {
+			respondWithError(w, http.StatusBadRequest, domain.ErrPasswordRequired.Error())
+			return
+		}
+
+		respondWithError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, loginResponse{Token: token})
+
 }
 
 func respondWithJSON(w http.ResponseWriter, statusCode int, payload interface{}) {

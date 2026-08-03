@@ -2,7 +2,6 @@ package sso
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	ssov1 "github.com/barnigator/protos/gen/go/sso/v1"
@@ -18,11 +17,11 @@ type Client struct {
 
 func New(address string, appID int32) (*Client, error) {
 	if address == "" {
-		return nil, errors.New("sso address is empty")
+		return nil, ErrSsoAddressIsEmpty
 	}
 
 	if appID <= 0 {
-		return nil, errors.New("sso app id must be positive")
+		return nil, ErrAppIDMustBePositive
 	}
 
 	conn, err := grpc.NewClient(
@@ -64,6 +63,7 @@ func (c *Client) Login(ctx context.Context, email, password string) (string, err
 	req := &ssov1.LoginRequest{
 		Email:    email,
 		Password: password,
+		AppId:    c.appID,
 	}
 
 	resp, err := c.client.Login(ctx, req)

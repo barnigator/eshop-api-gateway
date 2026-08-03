@@ -18,6 +18,7 @@ type fakeUseCase struct {
 	receivedCtx      context.Context
 
 	id     int64
+	token  string
 	err    error
 	called bool
 }
@@ -32,8 +33,12 @@ func (f *fakeUseCase) Register(ctx context.Context, email, password string) (int
 }
 
 func (f *fakeUseCase) Login(ctx context.Context, email, password string) (string, error) {
+	f.receivedEmail = email
+	f.receivedPassword = password
+	f.receivedCtx = ctx
 	f.called = true
-	return "", nil
+
+	return f.token, f.err
 }
 
 type errorResponse struct {
@@ -177,7 +182,7 @@ func TestHandler_Register(t *testing.T) {
 			}
 
 			if responseBody.UserID != test.expectedID {
-				t.Fatalf("user_id = %d, want %d", responseBody.UserID, test.expectedID)
+				t.Fatalf("unexpected user_id: got %d, want %d", responseBody.UserID, test.expectedID)
 			}
 
 			if uc.receivedEmail != test.expectedEmail {
@@ -188,6 +193,162 @@ func TestHandler_Register(t *testing.T) {
 				t.Fatalf("unexpected password: got %v, want %v", uc.receivedPassword, test.expectedPassword)
 			}
 
+		})
+	}
+}
+
+func TestHandler_Login(t *testing.T) {
+	tests := []struct {
+		name               string
+		body               string
+		token              string
+		usecaseErr         error
+		expectedPassword   string
+		expectedEmail      string
+		expectedStatusCode int
+		expectedErr        string
+		expectedCall       bool
+	}{
+		{
+			name:               "success",
+			body:               `{"email":"user@example.com", "password":"secret"}`,
+			token:              "test-token",
+			expectedPassword:   "secret",
+			expectedEmail:      "user@example.com",
+			expectedStatusCode: http.StatusOK,
+			expectedCall:       true,
+		},
+		{
+			name:               "fake app_id",
+			body:               `{"email":"user@example.com", "password":"secret", "app_id":"1"}`,
+			expectedErr:        "invalid input data",
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "invalid json",
+			body:               `{"email":"user@example.com","password":`,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedErr:        "invalid input data",
+		},
+		{
+			name:               "unknown field",
+			body:               `{"login":"user@example.com", "password":"secret"}`,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedErr:        "invalid input data",
+		},
+		{
+			name:               "double json",
+			body:               `{"email":"a@example.com","password":"one"} {"email":"b@example.com","password":"two"}`,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedErr:        "invalid input data",
+		},
+		{
+			name:               "internal error",
+			body:               `{"email":"user@example.com", "password":"secret"}`,
+			usecaseErr:         errors.New("internal error"),
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedErr:        "internal error",
+			expectedCall:       true,
+		},
+		{
+			name:               "email required",
+			body:               `{"email":"", "password":"secret"}`,
+			usecaseErr:         domain.ErrEmailRequired,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedErr:        domain.ErrEmailRequired.Error(),
+			expectedCall:       true,
+		},
+		{
+			name:               "password required",
+			body:               `{"email":"user@example.com", "password":""}`,
+			usecaseErr:         domain.ErrPasswordRequired,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedErr:        domain.ErrPasswordRequired.Error(),
+			expectedCall:       true,
+		},
+		{
+			name:               "generic error",
+			body:               `{"email":"user@example.com", "password":"secret"}`,
+			usecaseErr:         errors.New("sso database connection refused"),
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedErr:        "internal error",
+			expectedCall:       true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			uc := &fakeUseCase{
+				token: test.token,
+				err:   test.usecaseErr,
+			}
+
+			handler := New(uc)
+
+			recorder := httptest.NewRecorder()
+
+			request := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/auth/login",
+				strings.NewReader(test.body),
+			)
+
+			type contextKey struct{}
+			key := contextKey{}
+			ctx := context.WithValue(request.Context(), key, "login-test")
+			request = request.WithContext(ctx)
+
+			handler.Login(recorder, request)
+
+			response := recorder.Result()
+			defer response.Body.Close()
+
+			if response.StatusCode != test.expectedStatusCode {
+				t.Fatalf("unexpected status code: got %v, want %v", response.StatusCode, test.expectedStatusCode)
+			}
+
+			if uc.called != test.expectedCall {
+				t.Fatalf("unexpected login call state: got %v, want %v", uc.called, test.expectedCall)
+			}
+
+			if test.expectedCall {
+				if got := uc.receivedCtx.Value(key); got != "login-test" {
+					t.Fatalf("unexpected context value: got %v", got)
+				}
+			}
+
+			if contentType := response.Header.Get("Content-Type"); contentType != "application/json" {
+				t.Fatalf("unexpected content/type: got %s", contentType)
+			}
+
+			if test.expectedErr != "" {
+				var responseBodyErr errorResponse
+				if err := json.NewDecoder(response.Body).Decode(&responseBodyErr); err != nil {
+					t.Fatalf("decode error response: %v", err)
+				}
+
+				if responseBodyErr.Error != test.expectedErr {
+					t.Fatalf("unexpected error: %s, want %s", responseBodyErr.Error, test.expectedErr)
+				}
+
+				return
+			}
+			var responseBody loginResponse
+			err := json.NewDecoder(response.Body).Decode(&responseBody)
+			if err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+
+			if responseBody.Token != test.token {
+				t.Fatalf("unexpected token: got %s, want %s", responseBody.Token, test.token)
+			}
+
+			if uc.receivedEmail != test.expectedEmail {
+				t.Fatalf("unexpected email: got %v, want %v", uc.receivedEmail, test.expectedEmail)
+			}
+
+			if uc.receivedPassword != test.expectedPassword {
+				t.Fatalf("unexpected password: got %v, want %v", uc.receivedPassword, test.expectedPassword)
+			}
 		})
 	}
 }

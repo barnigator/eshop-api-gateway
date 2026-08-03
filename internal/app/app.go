@@ -31,7 +31,8 @@ func (a *App) Run() error {
 
 	ssoClient, err := sso.New(
 		a.cfg.Clients.SSO.Address,
-		a.cfg.Clients.SSO.AppId)
+		a.cfg.Clients.SSO.AppId,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize sso client: %w", err)
 	}
