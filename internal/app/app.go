@@ -7,6 +7,7 @@ import (
 	"github.com/barnigator/eshop-api-gateway/internal/client/grpc/sso"
 	"github.com/barnigator/eshop-api-gateway/internal/config"
 	"github.com/barnigator/eshop-api-gateway/internal/http/handler"
+	"github.com/barnigator/eshop-api-gateway/internal/http/server"
 	"github.com/barnigator/eshop-api-gateway/internal/usecase"
 )
 
@@ -49,7 +50,11 @@ func (a *App) Run() error {
 
 	uc := usecase.New(ssoClient)
 
-	authHandler := handler.New(uc)
+	h := handler.New(uc)
 
-	return nil
+	router := server.NewRouter(h)
+
+	s := server.New(router, a.cfg.HTTP.Port, a.cfg.HTTP.Timeout)
+
+	return s.Run()
 }

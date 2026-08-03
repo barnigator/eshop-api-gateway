@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeHandler struct {
@@ -94,5 +95,28 @@ func TestNewRouter(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func TestNew(t *testing.T) {
+	handler := http.NewServeMux()
+	timeout := 5 * time.Second
+
+	server := New(handler, 8080, timeout)
+
+	if server.httpServer == nil {
+		t.Fatal("http server is nil")
+	}
+
+	if server.httpServer.Addr != ":8080" {
+		t.Fatalf("unexpected port: got %s, want \":8080\"", server.httpServer.Addr)
+	}
+
+	if server.httpServer.Handler != handler {
+		t.Fatal("handler was not preserved")
+	}
+
+	if server.httpServer.ReadHeaderTimeout != timeout {
+		t.Fatalf("wrong ReadHeaderTimeout: got %s, want %s", server.httpServer.ReadHeaderTimeout, timeout)
 	}
 }
