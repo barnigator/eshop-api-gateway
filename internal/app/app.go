@@ -1,8 +1,13 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"os/signal"
+	"syscall"
 
 	"github.com/barnigator/eshop-api-gateway/internal/client/grpc/sso"
 	"github.com/barnigator/eshop-api-gateway/internal/config"
@@ -56,5 +61,43 @@ func (a *App) Run() error {
 
 	s := server.New(router, a.cfg.HTTP.Port, a.cfg.HTTP.Timeout)
 
-	return s.Run()
+	shutdownSignalCtx, stop := signal.NotifyContext(
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	serverErrors := make(chan error, 1)
+
+	go func() {
+		serverErrors <- s.Run()
+	}()
+
+	select {
+	case serverErr := <-serverErrors:
+		if serverErr != nil && !errors.Is(serverErr, http.ErrServerClosed) {
+			return fmt.Errorf("http server stopped unexpectedly: %w", serverErr)
+		}
+
+		return nil
+	case <-shutdownSignalCtx.Done():
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			a.cfg.HTTP.ShutdownTimeout,
+		)
+		defer cancel()
+
+		err = s.Shutdown(shutdownCtx)
+		if err != nil {
+			return fmt.Errorf("server shutdown: %w", err)
+		}
+
+		serverErr := <-serverErrors
+		if serverErr != nil && !errors.Is(serverErr, http.ErrServerClosed) {
+			return fmt.Errorf("http server stopped unexpectedly: %w", serverErr)
+		}
+	}
+
+	return nil
 }

@@ -15,8 +15,9 @@ type Config struct {
 }
 
 type HTTPConfig struct {
-	Port    int           `yaml:"port" env:"HTTP_PORT"`
-	Timeout time.Duration `yaml:"timeout" env-default:"5s"`
+	Port            int           `yaml:"port" env:"HTTP_PORT"`
+	Timeout         time.Duration `yaml:"timeout" env-default:"5s"`
+	ShutdownTimeout time.Duration `yaml:"shutdown_timeout" env:"HTTP_SHUTDOWN_TIMEOUT"`
 }
 
 type ClientsConfig struct {

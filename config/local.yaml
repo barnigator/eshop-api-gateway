@@ -3,6 +3,7 @@ env: local
 http:
   port: 8080
   timeout: 5s
+  shutdown_timeout: 5s
 
 clients:
   sso:
