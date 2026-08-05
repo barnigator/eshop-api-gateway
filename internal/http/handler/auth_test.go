@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -114,6 +115,14 @@ func TestHandler_Register(t *testing.T) {
 			usecaseErr:         errors.New("sso database connection refused"),
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedErr:        "internal error",
+			expectedCall:       true,
+		},
+		{
+			name:               "email already exists",
+			body:               `{"email":"user@example.com", "password":"secret"}`,
+			usecaseErr:         fmt.Errorf("register user: %w", domain.ErrEmailAlreadyExists),
+			expectedStatusCode: http.StatusConflict,
+			expectedErr:        domain.ErrEmailAlreadyExists.Error(),
 			expectedCall:       true,
 		},
 	}
@@ -272,6 +281,14 @@ func TestHandler_Login(t *testing.T) {
 			usecaseErr:         errors.New("sso database connection refused"),
 			expectedStatusCode: http.StatusInternalServerError,
 			expectedErr:        "internal error",
+			expectedCall:       true,
+		},
+		{
+			name:               "invalid credentials",
+			body:               `{"email":"user@example.com", "password":"wrong password"}`,
+			usecaseErr:         fmt.Errorf("sso login: %w", domain.ErrInvalidCredentials),
+			expectedStatusCode: http.StatusUnauthorized,
+			expectedErr:        domain.ErrInvalidCredentials.Error(),
 			expectedCall:       true,
 		},
 	}

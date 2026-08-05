@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/barnigator/eshop-api-gateway/internal/domain"
 	ssov1 "github.com/barnigator/protos/gen/go/sso/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 type Client struct {
@@ -53,6 +56,9 @@ func (c *Client) Register(ctx context.Context, email, password string) (int64, e
 
 	resp, err := c.client.Register(ctx, req)
 	if err != nil {
+		if codes.AlreadyExists == status.Code(err) {
+			return 0, fmt.Errorf("sso register: %w", domain.ErrEmailAlreadyExists)
+		}
 		return 0, fmt.Errorf("sso register: %w", err)
 	}
 
@@ -68,6 +74,10 @@ func (c *Client) Login(ctx context.Context, email, password string) (string, err
 
 	resp, err := c.client.Login(ctx, req)
 	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return "", fmt.Errorf("sso login: %w", domain.ErrInvalidCredentials)
+		}
+
 		return "", fmt.Errorf("sso login: %w", err)
 	}
 

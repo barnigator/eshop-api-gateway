@@ -66,6 +66,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, domain.ErrEmailAlreadyExists) {
+			respondWithError(w, http.StatusConflict, domain.ErrEmailAlreadyExists.Error())
+			return
+		}
+
 		if errors.Is(err, domain.ErrPasswordRequired) {
 			respondWithError(w, http.StatusBadRequest, domain.ErrPasswordRequired.Error())
 			return
@@ -105,6 +110,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(err, domain.ErrPasswordRequired) {
 			respondWithError(w, http.StatusBadRequest, domain.ErrPasswordRequired.Error())
+			return
+		}
+
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			respondWithError(w, http.StatusUnauthorized, domain.ErrInvalidCredentials.Error())
 			return
 		}
 
